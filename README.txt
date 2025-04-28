@@ -14,7 +14,6 @@ Main Features
 
 Project Structure
 
-File/Class	Description
 Main.java - Application entry point.
 Login.java - Handles user login.
 Register.java - Manages new user registration with image upload.
@@ -31,8 +30,7 @@ SessionTimer.java - Manages automatic session expiration.
 UIGlobal.java - Centralizes UI styling (colors, fonts, icons).
 User.java - Represents the user model with profile image.
 
-Security First:
-
+Security:
 Passwords are stored securely using BCrypt hashing.
 
 All database queries use PreparedStatements to prevent SQL Injection.
