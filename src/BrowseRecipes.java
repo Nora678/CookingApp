@@ -1,20 +1,19 @@
-// Inventory.java already provided above
-// Below: BrowseRecipes.java, RecipeDetails.java, Favourites.java
-
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BrowseRecipes extends JFrame {
     private JTable table;
     private DefaultTableModel model;
-    private JComboBox<String> sortBox;
+    private JComboBox<String> sortBox, durationBox;
     private JTextField searchField;
-    private JButton searchButton, addButton, deleteButton, backButton;
-    private JButton logoutButton;
+    private JButton addButton, backButton, logoutButton;
+    private JCheckBox cookableCheckBox;
     private User user;
 
     public BrowseRecipes(User user) {
@@ -22,374 +21,303 @@ public class BrowseRecipes extends JFrame {
         setTitle("Browse Recipes");
         setSize(UIGlobal.WINDOW_WIDTH, UIGlobal.WINDOW_HEIGHT);
         setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        JPanel topPanel = new JPanel(new BorderLayout());
+        setupTopBar();
+        setupTable();
+        setupBottomBar();
+
+        setVisible(true);
+    }
+
+    private void setupTopBar() {
+        JPanel topPanel = new JPanel(new GridBagLayout());
         topPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
-        logoutButton = new JButton("Logout");
-        logoutButton.setFont(UIGlobal.BUTTON_FONT);
-        logoutButton.setBackground(UIGlobal.BUTTON_COLOR);
-        logoutButton.setFocusPainted(false);
-        logoutButton.addActionListener(e -> {
-            dispose();
-            new Login();
-        });
-        topPanel.add(logoutButton, BorderLayout.EAST);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        JPanel searchPanel = new JPanel();
-        searchField = new JTextField(15);
-        searchButton = new JButton("Search");
+        // --- Logo on Left ---
+        JLabel logoLabel = new JLabel(UIGlobal.LOGO_ICON);
+        logoLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridheight = 2;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.weightx = 0;
+        topPanel.add(logoLabel, gbc);
+
+        gbc.gridheight = 1;
+
+        // --- Search Label ---
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.weightx = 0;
+        topPanel.add(new JLabel("Search:"), gbc);
+
+        // --- Search Field ---
+        searchField = new JTextField(20);
+        gbc.gridx = 2;
+        gbc.weightx = 1;  // Important: allow field to expand
+        topPanel.add(searchField, gbc);
+
+        // --- Sort Dropdown ---
         sortBox = new JComboBox<>(new String[]{"Sort by Title", "Sort by Duration", "Sort by Price"});
-        searchPanel.add(searchField);
-        searchPanel.add(searchButton);
-        searchPanel.add(sortBox);
+        gbc.gridx = 3;
+        gbc.weightx = 0;
+        topPanel.add(sortBox, gbc);
 
-        topPanel.add(searchPanel, BorderLayout.CENTER);
+        // --- Duration Filter Dropdown ---
+        durationBox = new JComboBox<>(new String[]{
+                "All Durations", "< 15 min", "< 30 min", "< 60 min", "< 90 min"
+        });
+        gbc.gridx = 4;
+        topPanel.add(durationBox, gbc);
+
+        // --- Logout Button on Right ---
+        logoutButton = createStyledButton("Logout");
+        gbc.gridx = 5;
+        gbc.gridy = 0;
+        gbc.gridheight = 2;
+        gbc.anchor = GridBagConstraints.NORTHEAST;
+        topPanel.add(logoutButton, gbc);
+
+        // --- Cookable Checkbox (Bottom Line) ---
+        cookableCheckBox = new JCheckBox("Only Cookable Recipes");
+        cookableCheckBox.setBackground(UIGlobal.BACKGROUND_COLOR);
+        gbc.gridx = 1;
+        gbc.gridy = 1;
+        gbc.gridwidth = 4;
+        gbc.weightx = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        topPanel.add(cookableCheckBox, gbc);
+
         add(topPanel, BorderLayout.NORTH);
 
+        // Listeners
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { loadRecipes(); }
+            public void removeUpdate(DocumentEvent e) { loadRecipes(); }
+            public void changedUpdate(DocumentEvent e) { loadRecipes(); }
+        });
+        sortBox.addActionListener(e -> loadRecipes());
+        durationBox.addActionListener(e -> loadRecipes());
+        cookableCheckBox.addActionListener(e -> loadRecipes());
+        logoutButton.addActionListener(e -> {
+            Navigator.clear();
+            new Login();
+        });
+    }
+
+
+    private void setupTable() {
         model = new DefaultTableModel(new String[]{"Title", "Duration", "Price"}, 0);
         table = new JTable(model);
+        table.setFillsViewportHeight(true);
+        table.setBackground(Color.WHITE);
         JScrollPane scrollPane = new JScrollPane(table);
         add(scrollPane, BorderLayout.CENTER);
 
-        JPanel bottomPanel = new JPanel();
-        addButton = new JButton("Add Recipe");
-        deleteButton = new JButton("Delete Recipe");
-        backButton = new JButton("Go Back");
-
-        for (JButton btn : new JButton[]{addButton, deleteButton, backButton}) {
-            btn.setFont(UIGlobal.BUTTON_FONT);
-            btn.setBackground(UIGlobal.BUTTON_COLOR);
-            btn.setFocusPainted(false);
-            bottomPanel.add(btn);
-        }
-
-        add(bottomPanel, BorderLayout.SOUTH);
-
-        searchButton.addActionListener(e -> loadRecipes());
-        sortBox.addActionListener(e -> loadRecipes());
-        backButton.addActionListener(e -> {
-            dispose();
-            Navigator.goBack(this);
-        });
-        addButton.addActionListener(e -> {
-            new AddRecipe(user);
-        });
         table.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                int row = table.getSelectedRow();
-                if (row != -1) {
-                    String title = (String) model.getValueAt(row, 0);
-                    new RecipeDetails(user, title);
-                }
+            if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
+                Navigator.push(this);
+                String title = (String) model.getValueAt(table.getSelectedRow(), 0);
+                new RecipeDetails(user, title, this);
+                loadRecipes();
             }
         });
 
         loadRecipes();
-        setVisible(true);
     }
 
-    private void loadRecipes() {
-        model.setRowCount(0);
-        String query = "SELECT recipe_id, title, duration, price FROM recipes";
-        String search = searchField.getText();
-        if (!search.isBlank()) {
-            query += " WHERE title LIKE '%" + search + "%'";
-        }
-
-        switch (sortBox.getSelectedIndex()) {
-            case 1: query += " ORDER BY duration"; break;
-            case 2: query += " ORDER BY price"; break;
-            default: query += " ORDER BY title"; break;
-        }
-
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement(query);
-             ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                model.addRow(new Object[]{rs.getString("title"), rs.getDouble("duration"), rs.getDouble("price")});
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-}
-
-// RecipeDetails.java – Improved UI and Image Display
-
-class RecipeDetails extends JFrame {
-    private JLabel titleLabel, imageLabel;
-    private JTextArea descriptionArea, instructionsArea, ingredientsArea;
-    private JButton favButton, backButton;
-
-    public RecipeDetails(User user, String recipeTitle) {
-        setTitle("Recipe Details: " + recipeTitle);
-        setSize(UIGlobal.WINDOW_WIDTH, UIGlobal.WINDOW_HEIGHT);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        // Title
-        titleLabel = new JLabel(recipeTitle);
-        titleLabel.setFont(new Font("Serif", Font.BOLD, 24));
-        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        mainPanel.add(titleLabel, BorderLayout.NORTH);
-
-        // Image + Info
-        JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
-
-        imageLabel = new JLabel();
-        imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        imageLabel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-        loadRecipeImage(recipeTitle);
-        centerPanel.add(imageLabel, BorderLayout.NORTH);
-
-        // Text Areas
-        JPanel textPanel = new JPanel(new GridLayout(3, 1, 5, 5));
-        textPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
-
-        descriptionArea = createTextArea("Description");
-        instructionsArea = createTextArea("Instructions");
-        ingredientsArea = createTextArea("Ingredients");
-
-        textPanel.add(new JScrollPane(descriptionArea));
-        textPanel.add(new JScrollPane(ingredientsArea));
-        textPanel.add(new JScrollPane(instructionsArea));
-
-        centerPanel.add(textPanel, BorderLayout.CENTER);
-        mainPanel.add(centerPanel, BorderLayout.CENTER);
-
-        // Buttons
+    private void setupBottomBar() {
         JPanel bottomPanel = new JPanel();
-        bottomPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
+        addButton = createStyledButton("Add Recipe");
+        backButton = createStyledButton("Go Back");
 
-        favButton = new JButton("Add to Favourites");
-        backButton = new JButton("Go Back");
-
-        styleButton(favButton);
-        styleButton(backButton);
-
-        bottomPanel.add(favButton);
-        bottomPanel.add(backButton);
-
-        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
-
-        add(mainPanel);
-        loadRecipeDetails(recipeTitle);
-
-        favButton.addActionListener(e -> addToFavourites(user, recipeTitle));
+        addButton.addActionListener(e -> {
+            Navigator.push(this);
+            new AddRecipe(user);
+        });
         backButton.addActionListener(e -> Navigator.goBack(this));
 
-        setVisible(true);
-    }
-
-    private JTextArea createTextArea(String label) {
-        JTextArea area = new JTextArea(label + "...\n");
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        area.setBackground(new Color(255, 255, 245));
-        area.setBorder(BorderFactory.createTitledBorder(label));
-        area.setEditable(false);
-        return area;
-    }
-
-    private void styleButton(JButton button) {
-        button.setFont(UIGlobal.BUTTON_FONT);
-        button.setBackground(UIGlobal.BUTTON_COLOR);
-        button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1, true));
-    }
-
-    private void loadRecipeDetails(String title) {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("SELECT * FROM recipes WHERE title = ?")) {
-            stmt.setString(1, title);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                descriptionArea.setText(rs.getString("description"));
-                instructionsArea.setText(rs.getString("instructions"));
-                ingredientsArea.setText(getIngredients(rs.getInt("recipe_id")));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void loadRecipeImage(String title) {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("SELECT image FROM recipes WHERE title = ?")) {
-            stmt.setString(1, title);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                byte[] imageData = rs.getBytes("image");
-                if (imageData != null) {
-                    ImageIcon icon = new ImageIcon(imageData);
-                    Image scaled = icon.getImage().getScaledInstance(250, 200, Image.SCALE_SMOOTH);
-                    imageLabel.setIcon(new ImageIcon(scaled));
-                } else {
-                    imageLabel.setText("No image available");
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private String getIngredients(int recipeId) throws SQLException {
-        StringBuilder sb = new StringBuilder();
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("SELECT i.name, ri.quantity FROM recipe_ingredients ri JOIN ingredients i ON ri.ingredient_id = i.ingredient_id WHERE ri.recipe_id = ?")) {
-            stmt.setInt(1, recipeId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                sb.append(rs.getString("name")).append(" - ").append(rs.getString("quantity")).append("\n");
-            }
-        }
-        return sb.toString();
-    }
-
-    private void addToFavourites(User user, String title) {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123")) {
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO favourites (user_id, recipe_id) VALUES (?, ?)");
-            stmt.setInt(1, getUserId(user.getFirst_name()));
-            stmt.setInt(2, getRecipeIdByTitle(title));
-            stmt.executeUpdate();
-            JOptionPane.showMessageDialog(this, "Added to Favourites!");
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Failed to add to favourites.");
-        }
-    }
-
-    private int getUserId(String username) throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("SELECT user_id FROM users WHERE name = ?")) {
-            stmt.setString(1, username);
-            ResultSet rs = stmt.executeQuery();
-            return rs.next() ? rs.getInt("user_id") : -1;
-        }
-    }
-
-    private int getRecipeIdByTitle(String title) throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("SELECT recipe_id FROM recipes WHERE title = ?")) {
-            stmt.setString(1, title);
-            ResultSet rs = stmt.executeQuery();
-            return rs.next() ? rs.getInt("recipe_id") : -1;
-        }
-    }
-}
-
-
-class Favourites extends JFrame {
-    private JTable table;
-    private DefaultTableModel model;
-    private JTextField searchField;
-    private JButton searchButton, removeButton, backButton, logoutButton;
-
-    public Favourites(User user) {
-        setTitle("Favourite Recipes");
-        setSize(UIGlobal.WINDOW_WIDTH, UIGlobal.WINDOW_HEIGHT);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
-
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
-
-        logoutButton = new JButton("Logout");
-        logoutButton.setFont(UIGlobal.BUTTON_FONT);
-        logoutButton.setBackground(UIGlobal.BUTTON_COLOR);
-        logoutButton.setFocusPainted(false);
-        logoutButton.addActionListener(e -> {
-            dispose();
-            new Login();
-        });
-        topPanel.add(logoutButton, BorderLayout.EAST);
-
-        JPanel searchPanel = new JPanel();
-        searchField = new JTextField(15);
-        searchButton = new JButton("Search");
-        searchPanel.add(searchField);
-        searchPanel.add(searchButton);
-        topPanel.add(searchPanel, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
-
-        model = new DefaultTableModel(new String[]{"Title", "Added At"}, 0);
-        table = new JTable(model);
-        add(new JScrollPane(table), BorderLayout.CENTER);
-
-        JPanel bottomPanel = new JPanel();
-        removeButton = new JButton("Remove from Favourites");
-        backButton = new JButton("Go Back");
-        for (JButton btn : new JButton[]{removeButton, backButton}) {
-            btn.setFont(UIGlobal.BUTTON_FONT);
-            btn.setBackground(UIGlobal.BUTTON_COLOR);
-            btn.setFocusPainted(false);
-            bottomPanel.add(btn);
-        }
+        bottomPanel.add(addButton);
+        bottomPanel.add(backButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
-
-        backButton.addActionListener(e -> {
-            dispose();
-            Navigator.goBack(this);
-        });
-
-        searchButton.addActionListener(e -> loadFavourites(user, searchField.getText()));
-        removeButton.addActionListener(e -> removeFromFavourites(user));
-
-        loadFavourites(user, "");
-        setVisible(true);
     }
 
-    private void loadFavourites(User user, String search) {
+    public void loadRecipes() {
         model.setRowCount(0);
-        String query = "SELECT r.title, f.added_at FROM favourites f JOIN recipes r ON f.recipe_id = r.recipe_id WHERE f.user_id = ?";
-        if (!search.isBlank()) {
-            query += " AND r.title LIKE ?";
+        String searchText = searchField.getText().trim();
+        int selectedDuration = getSelectedDuration();
+
+        Set<String> availableIngredients = new HashSet<>();
+        if (cookableCheckBox.isSelected()) {
+            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
+                 PreparedStatement stmt = conn.prepareStatement("""
+                 SELECT i.name FROM my_inventory mi JOIN ingredients i ON mi.ingredient_id = i.ingredient_id WHERE mi.user_id = ?
+                 """)) {
+                stmt.setInt(1, getUserId());
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    availableIngredients.add(rs.getString("name").toLowerCase());
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return;
+            }
         }
+
+        String query = "SELECT recipe_id, title, duration, price FROM recipes WHERE 1=1";
+        if (!searchText.isEmpty()) query += " AND title LIKE ?";
+        if (selectedDuration > 0) query += " AND duration <= " + selectedDuration;
+
+        switch (sortBox.getSelectedIndex()) {
+            case 1 -> query += " ORDER BY duration ASC";
+            case 2 -> query += " ORDER BY price ASC";
+            default -> query += " ORDER BY title ASC";
+        }
+
         try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
              PreparedStatement stmt = conn.prepareStatement(query)) {
-            stmt.setInt(1, getUserId(user.getFirst_name()));
-            if (!search.isBlank()) stmt.setString(2, "%" + search + "%");
+
+            int paramIndex = 1;
+            if (!searchText.isEmpty()) {
+                stmt.setString(paramIndex++, "%" + searchText + "%");
+            }
+
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                model.addRow(new Object[]{rs.getString("title"), rs.getTimestamp("added_at")});
+                int recipeId = rs.getInt("recipe_id");
+                String title = rs.getString("title");
+                double duration = rs.getDouble("duration");
+                double price = rs.getDouble("price");
+
+                if (cookableCheckBox.isSelected()) {
+                    if (canCookRecipe(recipeId, availableIngredients)) {
+                        model.addRow(new Object[]{title, duration, price});
+                    }
+                } else {
+                    model.addRow(new Object[]{title, duration, price});
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private boolean canCookRecipe(int recipeId, Set<String> availableIngredients) {
+        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123")) {
+
+            // 1. Load required ingredients and quantities
+            PreparedStatement stmt = conn.prepareStatement("""
+            SELECT i.name, ri.quantity
+            FROM recipe_ingredients ri
+            JOIN ingredients i ON ri.ingredient_id = i.ingredient_id
+            WHERE ri.recipe_id = ?
+        """);
+            stmt.setInt(1, recipeId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                String requiredName = rs.getString("name").toLowerCase();
+                String requiredQuantityStr = rs.getString("quantity");
+
+                // 2. If user doesn't have the ingredient at all
+                if (!availableIngredients.contains(requiredName)) {
+                    return false;
+                }
+
+                // 3. Now check if the user's quantity is enough:
+                double requiredAmount = parseQuantity(requiredQuantityStr);
+                double availableAmount = getAvailableIngredientQuantity(requiredName);
+
+                if (availableAmount < requiredAmount) {
+                    return false;
+                }
+            }
+            return true;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    private double getAvailableIngredientQuantity(String ingredientName) {
+        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123")) {
+            PreparedStatement stmt = conn.prepareStatement("""
+            SELECT mi.quantity
+            FROM my_inventory mi
+            JOIN ingredients i ON mi.ingredient_id = i.ingredient_id
+            WHERE i.name = ? AND mi.user_id = ?
+        """);
+            stmt.setString(1, ingredientName);
+            stmt.setInt(2, getUserId());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return parseQuantity(rs.getString("quantity"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        return 0.0; // not found
     }
 
-    private void removeFromFavourites(User user) {
-        int row = table.getSelectedRow();
-        if (row == -1) return;
-        String title = (String) model.getValueAt(row, 0);
-        // Remove by title (you should use recipe_id)
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
-             PreparedStatement stmt = conn.prepareStatement("DELETE f FROM favourites f JOIN recipes r ON f.recipe_id = r.recipe_id WHERE f.user_id = ? AND r.title = ?")) {
-            stmt.setInt(1, getUserId(user.getFirst_name()));
-            stmt.setString(2, title);
-            stmt.executeUpdate();
-            model.removeRow(row);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+
+    private int getSelectedDuration() {
+        return switch (durationBox.getSelectedIndex()) {
+            case 1 -> 15;
+            case 2 -> 30;
+            case 3 -> 60;
+            case 4 -> 90;
+            default -> -1;
+        };
     }
 
-    private int getUserId(String username) throws SQLException {
+    private int getUserId() throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/cookingApp", "root", "123");
              PreparedStatement stmt = conn.prepareStatement("SELECT user_id FROM users WHERE name = ?")) {
-            stmt.setString(1, username);
+            stmt.setString(1, user.getFirst_name());
             ResultSet rs = stmt.executeQuery();
             return rs.next() ? rs.getInt("user_id") : -1;
         }
+    }
+    private double parseQuantity(String quantityStr) {
+        if (quantityStr == null || quantityStr.isBlank()) return 0;
+
+        quantityStr = quantityStr.trim().toLowerCase();
+        double value = 0;
+        String numberPart = quantityStr.replaceAll("[^0-9.,]", "").replace(",", ".");
+        String unitPart = quantityStr.replaceAll("[0-9.,\\s]", "").trim();
+
+        try {
+            value = Double.parseDouble(numberPart);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+
+        switch (unitPart) {
+            case "kg": return value * 1000;
+            case "g": return value;
+            case "mg": return value / 1000;
+            case "l": return value * 1000;
+            case "L": return value * 1000;
+            case "ml": return value;
+            case "pcs": return value;
+            default: return value;
+        }
+    }
+
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setBackground(UIGlobal.BUTTON_COLOR);
+        button.setFont(UIGlobal.BUTTON_FONT);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1, true));
+        return button;
     }
 }

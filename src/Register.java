@@ -1,180 +1,156 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileInputStream;
-import javax.imageio.ImageIO;
 import java.io.IOException;
 import org.mindrot.jbcrypt.BCrypt;
+import javax.imageio.ImageIO;
 
 public class Register extends JFrame {
-    private JPanel panel1;
-    private JTextField nameField;
-    private JTextField usernameField;
+    private JTextField nameField, usernameField;
     private JPasswordField passwordField;
-    private JButton registerButton;
-    private JButton selectImageButton;
+    private JButton registerButton, selectImageButton, loginInsteadButton;
     private JLabel imageLabel;
     private File selectedImageFile;
-    private JButton loginInsteadButton;
-
-    private void styleButton(JButton button) {
-        button.setBackground(UIGlobal.BUTTON_COLOR);
-        button.setFont(UIGlobal.BUTTON_FONT);
-        button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1, true));
-    }
 
     public Register() {
-        setTitle("Cooking App Sign Up");
+        setTitle("Cooking App - Register");
         setSize(UIGlobal.WINDOW_WIDTH, UIGlobal.WINDOW_HEIGHT);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        panel1 = new JPanel(new GridBagLayout());
-        panel1.setBackground(UIGlobal.BACKGROUND_COLOR);  // Set background
-
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(UIGlobal.BACKGROUND_COLOR);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Title Label
-        JLabel title = new JLabel("Sign Up");
+        JLabel title = new JLabel("Create Your Account");
         title.setFont(UIGlobal.TITLE_FONT);
         title.setHorizontalAlignment(SwingConstants.CENTER);
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.gridwidth = 2;
-        panel1.add(title, gbc);
+        panel.add(title, gbc);
 
-        // Reset grid width
         gbc.gridwidth = 1;
 
-        // Name Field
-        JLabel nameLabel = new JLabel("Name:");
         gbc.gridx = 0;
         gbc.gridy = 1;
-        panel1.add(nameLabel, gbc);
-
-        nameField = new JTextField(20);
+        panel.add(new JLabel("Name:"), gbc);
         gbc.gridx = 1;
-        panel1.add(nameField, gbc);
+        nameField = new JTextField(20);
+        panel.add(nameField, gbc);
 
-        // Username Field
-        JLabel usernameLabel = new JLabel("Username:");
         gbc.gridx = 0;
         gbc.gridy = 2;
-        panel1.add(usernameLabel, gbc);
-
-        usernameField = new JTextField(20);
+        panel.add(new JLabel("Username:"), gbc);
         gbc.gridx = 1;
-        panel1.add(usernameField, gbc);
+        usernameField = new JTextField(20);
+        panel.add(usernameField, gbc);
 
-        // Password Field
-        JLabel passwordLabel = new JLabel("Password:");
         gbc.gridx = 0;
         gbc.gridy = 3;
-        panel1.add(passwordLabel, gbc);
-
-        passwordField = new JPasswordField(20);
+        panel.add(new JLabel("Password:"), gbc);
         gbc.gridx = 1;
-        panel1.add(passwordField, gbc);
+        passwordField = new JPasswordField(20);
+        panel.add(passwordField, gbc);
 
-        // Image Button
-        selectImageButton = new JButton("Select Profile Image");
-        styleButton(selectImageButton);
+        // Select Image Button
+        selectImageButton = createStyledButton("Select Profile Image");
         gbc.gridx = 0;
         gbc.gridy = 4;
-        gbc.gridwidth = 2;
-        panel1.add(selectImageButton, gbc);
+        panel.add(selectImageButton, gbc);
 
-        // Image preview
-        imageLabel = new JLabel("No Image Selected", SwingConstants.CENTER);
-        imageLabel.setPreferredSize(new Dimension(200, 200));
+        // Image Preview Label
+        gbc.gridx = 1;
+        imageLabel = new JLabel("No Image", SwingConstants.CENTER);
+        imageLabel.setPreferredSize(new Dimension(150, 150));
         imageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-        gbc.gridy = 5;
-        panel1.add(imageLabel, gbc);
+        panel.add(imageLabel, gbc);
 
         // Register Button
-        registerButton = new JButton("Register");
-        styleButton(registerButton);
+        gbc.gridx = 0;
+        gbc.gridy = 5;
+        gbc.gridwidth = 2;
+        registerButton = createStyledButton("Register");
+        panel.add(registerButton, gbc);
+
+        // Login Instead Button
         gbc.gridy = 6;
-        panel1.add(registerButton, gbc);
+        loginInsteadButton = createStyledButton("Already have an account?");
+        panel.add(loginInsteadButton, gbc);
 
-        // Switch to login
-        loginInsteadButton = new JButton("Login instead");
-        styleButton(loginInsteadButton);
-        gbc.gridy = 7;
-        panel1.add(loginInsteadButton, gbc);
-
-        setContentPane(panel1);
+        add(panel);
         setVisible(true);
 
+        // Action Listeners
+        selectImageButton.addActionListener(this::chooseImage);
+        registerButton.addActionListener(this::registerAction);
+        loginInsteadButton.addActionListener(e -> {
+            dispose();
+            new Login();
+        });
+    }
 
-        selectImageButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                JFileChooser fileChooser = new JFileChooser();
-                int result = fileChooser.showOpenDialog(null);
-
-                if (result == JFileChooser.APPROVE_OPTION) {
-                    selectedImageFile = fileChooser.getSelectedFile();
-                    try {
-                        Image image = ImageIO.read(selectedImageFile);
-                        ImageIcon icon = new ImageIcon(image.getScaledInstance(200, 200, Image.SCALE_SMOOTH));
-                        imageLabel.setIcon(icon);
-                        imageLabel.setText("");
-                    } catch (IOException ex) {
-                        JOptionPane.showMessageDialog(null, "Error loading image.");
-                    }
+    private void chooseImage(ActionEvent e) {
+        JFileChooser chooser = new JFileChooser();
+        int result = chooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            selectedImageFile = chooser.getSelectedFile();
+            try {
+                Image image = ImageIO.read(selectedImageFile);
+                if (image != null) {
+                    Image scaled = image.getScaledInstance(150, 150, Image.SCALE_SMOOTH);
+                    imageLabel.setIcon(new ImageIcon(scaled));
+                    imageLabel.setText("");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error loading image.");
                 }
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Error reading image file.");
+            }
+        }
+    }
+
+    private void registerAction(ActionEvent e) {
+        String name = nameField.getText();
+        String username = usernameField.getText();
+        String password = new String(passwordField.getPassword());
+
+        if (name.isBlank() || username.isBlank() || password.isBlank() || selectedImageFile == null) {
+            JOptionPane.showMessageDialog(this, "All fields must be filled, and image selected!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try (FileInputStream imgStream = new FileInputStream(selectedImageFile)) {
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+            connect.addUser(name, username, hashedPassword, imgStream);
+            JOptionPane.showMessageDialog(this, "Registration Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+
+            new Login();
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Error reading image file.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setBackground(UIGlobal.BUTTON_COLOR);
+        button.setFont(UIGlobal.BUTTON_FONT);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1, true));
+
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(UIGlobal.BUTTON_HOVER_COLOR);
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(UIGlobal.BUTTON_COLOR);
             }
         });
 
-        registerButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String name = nameField.getText();
-                String username = usernameField.getText();
-                String password = new String(passwordField.getPassword());
-
-                if (name.isEmpty() || username.isEmpty() || password.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "All fields are required.");
-                    return;
-                }
-
-                if (selectedImageFile == null) {
-                    JOptionPane.showMessageDialog(null, "Please select an image.");
-                    return;
-                }
-
-                try {
-                    FileInputStream imageStream = new FileInputStream(selectedImageFile);  // Convert File to InputStream
-
-                    String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-                    connect.addUser(name, username, hashedPassword, imageStream);
-
-
-                    JOptionPane.showMessageDialog(null, "Registration Successful!");
-                    System.out.println("Registered: " + name + " (" + username + ")");
-                    System.out.println("Selected Image: " + selectedImageFile.getAbsolutePath());
-
-                    imageStream.close();
-                    new Login();
-                    // Close the stream to prevent resource leaks
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(null, "Error reading image file.");
-                }
-            }
-        });
-
-
-        loginInsteadButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                new Login();
-            }
-        });
+        return button;
     }
 }

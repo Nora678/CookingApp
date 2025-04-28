@@ -1,30 +1,38 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 public class Login extends JFrame {
+
     private JTextField usernameField;
     private JPasswordField passwordField;
-    private JButton loginButton;
+    private JButton loginButton, registerInsteadButton;
     private JPanel panel;
-    private JButton registerInsteadButton;
 
     public Login() {
-        setTitle("Cooking App Login");
+        setTitle("Cooking App - Login");
         setSize(UIGlobal.WINDOW_WIDTH, UIGlobal.WINDOW_HEIGHT);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBackground(UIGlobal.BACKGROUND_COLOR);
+
+        // Load Logo
+        JLabel logoLabel = new JLabel(UIGlobal.LOGO_ICON);
+        logoLabel.setBorder(BorderFactory.createEmptyBorder(70, 0, 0, 0));
+        logoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        topPanel.add(logoLabel, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
 
         panel = new JPanel(new GridBagLayout());
         panel.setBackground(UIGlobal.BACKGROUND_COLOR);
-
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(12, 12, 12, 12);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Title
-        JLabel titleLabel = new JLabel("Cooking App Login");
+        JLabel titleLabel = new JLabel("Welcome to Cooking App!");
         titleLabel.setFont(UIGlobal.TITLE_FONT);
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         gbc.gridx = 0;
@@ -32,79 +40,71 @@ public class Login extends JFrame {
         gbc.gridwidth = 2;
         panel.add(titleLabel, gbc);
 
-        // Username Label
-        JLabel userLabel = new JLabel("Username:");
+        gbc.gridwidth = 1;
+
         gbc.gridx = 0;
         gbc.gridy = 1;
-        gbc.gridwidth = 1;
-        panel.add(userLabel, gbc);
-
-        // Username Field
-        usernameField = new JTextField(15);
+        panel.add(new JLabel("Username:"), gbc);
         gbc.gridx = 1;
+        usernameField = new JTextField(15);
         panel.add(usernameField, gbc);
 
-        // Password Label
-        JLabel passLabel = new JLabel("Password:");
         gbc.gridx = 0;
         gbc.gridy = 2;
-        panel.add(passLabel, gbc);
-
-        // Password Field
-        passwordField = new JPasswordField(15);
+        panel.add(new JLabel("Password:"), gbc);
         gbc.gridx = 1;
+        passwordField = new JPasswordField(15);
         panel.add(passwordField, gbc);
 
-        // Login Button
-        loginButton = new JButton("Login");
-        styleButton(loginButton);
+
+        loginButton = createStyledButton("Login");
         gbc.gridx = 0;
         gbc.gridy = 3;
         gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
+        gbc.insets = new Insets(20, 0, 10, 0); // Add background space above
         panel.add(loginButton, gbc);
+        registerInsteadButton = createStyledButton("Register Instead");
 
-        // Register Instead Button
-        registerInsteadButton = new JButton("Register instead");
-        styleButton(registerInsteadButton);
+
         gbc.gridy = 4;
         panel.add(registerInsteadButton, gbc);
 
         add(panel);
-
-        // Login Logic
-        loginButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String username = usernameField.getText();
-                String password = new String(passwordField.getPassword());
-
-                User user = connect.Login(username, password);
-                if (user != null) {
-                    JOptionPane.showMessageDialog(null, "Successfully logged in as " + user.getFirst_name(), "Login Success", JOptionPane.INFORMATION_MESSAGE);
-                    dispose();
-                    new Welcome(user);
-                } else {
-                    JOptionPane.showMessageDialog(null, "Login failed. Invalid credentials.", "Login Error", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
-
-        registerInsteadButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                dispose();
-                new Register();
-            }
-        });
-
         setVisible(true);
+
+        loginButton.addActionListener(this::loginAction);
+        registerInsteadButton.addActionListener(e -> {
+            dispose();
+            new Register();
+        });
     }
 
-    private void styleButton(JButton button) {
+    private void loginAction(ActionEvent e) {
+        String username = usernameField.getText();
+        String password = new String(passwordField.getPassword());
+
+        if (username.isBlank() || password.isBlank()) {
+            JOptionPane.showMessageDialog(this, "Please fill all fields.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        User user = connect.Login(username, password);
+        if (user != null) {
+            JOptionPane.showMessageDialog(this, "Welcome " + user.getFirst_name() + "!", "Login Successful", JOptionPane.INFORMATION_MESSAGE);
+            dispose();
+            new Welcome(user);
+        } else {
+            JOptionPane.showMessageDialog(this, "Invalid credentials.", "Login Failed", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
         button.setBackground(UIGlobal.BUTTON_COLOR);
         button.setFont(UIGlobal.BUTTON_FONT);
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1, true));
+        return button;
     }
 }
+
