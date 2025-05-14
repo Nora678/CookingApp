@@ -1,4 +1,4 @@
-# 🍳 Cooking App
+# Cooking App
 
 ## Overview
 
